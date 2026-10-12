@@ -162,6 +162,15 @@ npx eas build -p android --profile preview
 
 ### iOS 模拟器包（无需 Apple 开发者账号）
 
+**推荐：走 GitHub Actions，零成本、不限时长。**
+
+仓库里已有 `.github/workflows/ios-simulator.yml`：推到 GitHub（仓库需 **公开**，
+托管 macOS runner 才免费）后自动在云端 `prebuild` → `pod install` →
+`xcodebuild`（Release）→ 装进真 iOS Simulator → 截图 + 录屏，产物在
+Actions 页面的 **Artifacts** 里下载。完整步骤与排错见 `../iOS验证方案.md`。
+
+也可以用 EAS 出包（有免费额度上限）：
+
 ```powershell
 npx eas build -p ios --profile simulator
 ```
