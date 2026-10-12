@@ -1,0 +1,180 @@
+name: iOS Simulator
+
+# 在 GitHub 托管的 macOS runner 上真跑一次 iOS 模拟器：
+# prebuild -> pod install -> xcodebuild(Release) -> simctl 安装/启动 -> 截图 + 录屏。
+# 公开仓库的托管 runner 免费且不限时长，所以这条链路零成本。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "src/**"
+      - "assets/**"
+      - "app.json"
+      - "package.json"
+      - "package-lock.json"
+      - "babel.config.js"
+      - "tsconfig.json"
+      - ".github/workflows/ios-simulator.yml"
+
+concurrency:
+  group: ios-simulator-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPO_NO_TELEMETRY: "1"
+  APP_ID: app.liheng.mobile
+
+jobs:
+  ios-simulator:
+    name: Build and run on iOS Simulator
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+
+      - name: Resolve workspace and scheme
+        id: xcode
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          # 工程名由 app.json 的 name 推导（中文名会被 sanitize），所以这里动态解析，
+          # 不硬编码，避免 prebuild 改名后 CI 直接挂掉。
+          WORKSPACE=$(ls -d *.xcworkspace 2>/dev/null | head -n 1 || true)
+          if [ -z "${WORKSPACE}" ]; then
+            echo "::error::prebuild 没有生成 .xcworkspace"
+            ls -la
+            exit 1
+          fi
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list -json \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const w=j.workspace||j.project||{};const list=(w.schemes||[]).filter(n=>!/Tests?$/.test(n));console.log(list[0]||(w.schemes||[])[0]||"");})')
+          if [ -z "${SCHEME}" ]; then
+            echo "::error::解析不到 scheme"
+            xcodebuild -workspace "$WORKSPACE" -list
+            exit 1
+          fi
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "resolved workspace=$WORKSPACE scheme=$SCHEME"
+
+      - name: Build for iOS Simulator (Release)
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          # Release 会把 JS bundle 内联进 .app，模拟器里没有 Metro 也能跑。
+          # Debug 包会去找 8081 的 Metro，CI 里必然红屏，所以这里不能用 Debug。
+          xcodebuild \
+            -workspace "${{ steps.xcode.outputs.workspace }}" \
+            -scheme "${{ steps.xcode.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$PWD/build" \
+            build
+
+      - name: Boot simulator, install and capture evidence
+        run: |
+          set -euo pipefail
+
+          APP_PATH=$(find ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name "*.app" -type d | head -n 1)
+          if [ -z "${APP_PATH}" ]; then
+            echo "::error::没找到 .app，构建产物路径可能变了"
+            find ios/build -maxdepth 4 -name "*.app" -type d || true
+            exit 1
+          fi
+          echo "app bundle: ${APP_PATH}"
+
+          DEVICE_ID=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          if [ -z "${DEVICE_ID}" ]; then
+            echo "::error::runner 上没有可用的 iPhone 模拟器"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "device: ${DEVICE_ID}"
+
+          xcrun simctl boot "${DEVICE_ID}" || true
+          xcrun simctl bootstatus "${DEVICE_ID}" -b
+
+          xcrun simctl install "${DEVICE_ID}" "${APP_PATH}"
+
+          mkdir -p screenshots
+
+          # 录屏覆盖「启动 -> 切 tab -> 开 modal」整条主流程
+          xcrun simctl io "${DEVICE_ID}" recordVideo --codec=h264 flow.mp4 &
+          REC_PID=$!
+          # 录屏是加分项，不能因为它挂住整个 job：超时就强杀。
+          stop_recording() {
+            kill -INT "${REC_PID}" 2>/dev/null || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              kill -0 "${REC_PID}" 2>/dev/null || return 0
+              sleep 1
+            done
+            kill -KILL "${REC_PID}" 2>/dev/null || true
+          }
+
+          xcrun simctl launch "${DEVICE_ID}" "${APP_ID}"
+          sleep 12
+          xcrun simctl io "${DEVICE_ID}" screenshot screenshots/01-today.png
+
+          shot() {
+            # 自定义 scheme 的 deep link：expo-router 会把 liheng:///x 解析成路由 /x，
+            # (tabs) 这种路由组不出现在 URL 里。
+            xcrun simctl openurl "${DEVICE_ID}" "$1" || true
+            sleep 3
+            xcrun simctl io "${DEVICE_ID}" screenshot "screenshots/$2.png"
+          }
+
+          shot "liheng:///train"   02-train
+          shot "liheng:///food"    03-food
+          shot "liheng:///health"  04-health
+          shot "liheng:///me"      05-me
+          shot "liheng:///capture" 06-capture
+          shot "liheng:///plan"    07-plan
+          shot "liheng:///"        08-back-to-today
+
+          sleep 2
+          stop_recording
+          wait "${REC_PID}" 2>/dev/null || true
+          ls -lh flow.mp4 || true
+
+          # Appetize 只收「压缩后的 .app」，不收 .ipa
+          APP_NAME=$(basename "${APP_PATH}")
+          ( cd "$(dirname "${APP_PATH}")" && zip -qry "${GITHUB_WORKSPACE}/liheng-ios-simulator.zip" "${APP_NAME}" )
+          ls -lh "${GITHUB_WORKSPACE}/liheng-ios-simulator.zip"
+
+      - name: Upload simulator artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: liheng-ios-simulator
+          path: |
+            liheng-ios-simulator.zip
+            screenshots/*.png
+            flow.mp4
+          if-no-files-found: warn
+          retention-days: 30

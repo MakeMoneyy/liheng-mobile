@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
+
+# 原生工程由 CI（或本地 prebuild）临时生成，不进源码树
+ios/
+android/

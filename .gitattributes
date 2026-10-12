@@ -1,0 +1,8 @@
+# CI 在 macOS 上跑 bash；如果工作流文件带 CRLF，run: | 里的脚本会报
+# "$'\r': command not found"。强制这些文件在仓库里始终是 LF。
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+
+# 其余按 Git 默认自动处理
+* text=auto

@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "练衡",
+    "slug": "liheng",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "liheng",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0f120d",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.liheng.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "拍下餐食照片，AI 会识别食物并估算热量。",
+        "NSPhotoLibraryUsageDescription": "从相册选择餐食照片用于 AI 识别。",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.liheng.mobile",
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "选择餐食照片用于 AI 识别。",
+          "cameraPermission": "拍下餐食照片，AI 会识别食物并估算热量。"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0f120d",
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
