@@ -1,0 +1,112 @@
+name: Diag dismiss alert
+
+# 一次性诊断：复用已构建好的 .app（从 run 38504907444 下载），
+# 快速试出哪种方式能关掉 iOS 18+ 的 “Open in 练衡?” 确认框。
+# 探完即删。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Download previously built .app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: liheng-ios-simulator
+          run-id: 38504907444
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Unpack app
+        run: |
+          set -euo pipefail
+          ls -la
+          unzip -q liheng-ios-simulator.zip -d appdir
+          APP_PATH=$(find appdir -maxdepth 2 -name "*.app" -type d | head -n 1)
+          echo "APP_PATH=${APP_PATH}"
+          echo "APP_PATH=${APP_PATH}" >> "$GITHUB_ENV"
+
+      - name: Boot, install, and try dismiss strategies
+        run: |
+          set -euo pipefail
+
+          DEVICE_ID=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          echo "device: ${DEVICE_ID}"
+          xcrun simctl boot "${DEVICE_ID}" || true
+          xcrun simctl bootstatus "${DEVICE_ID}" -b
+          xcrun simctl install "${DEVICE_ID}" "${APP_PATH}"
+
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool true || true
+          open -a Simulator || true
+          sleep 10
+
+          mkdir -p shots
+          snap() { xcrun simctl io "${DEVICE_ID}" screenshot "shots/$1.png"; }
+
+          xcrun simctl launch "${DEVICE_ID}" app.liheng.mobile
+          sleep 12
+          snap "00-launched"
+
+          echo "=== DIAG frontmost ==="
+          osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' || true
+          echo "=== DIAG window bounds ==="
+          osascript -e 'tell application "System Events" to tell process "Simulator" to get {position, size} of window 1' || true
+
+          # 触发自定义 scheme 的确认框
+          xcrun simctl openurl "${DEVICE_ID}" "liheng:///train" || true
+          sleep 3
+          snap "01-alert"
+
+          echo "=== A: click at computed coords ==="
+          osascript <<'APPLESCRIPT' 2>&1 || true
+tell application "Simulator" to activate
+delay 1
+tell application "System Events"
+  tell process "Simulator"
+    set p to position of window 1
+    set s to size of window 1
+  end tell
+  set cx to (item 1 of p) + ((item 1 of s) * 0.682)
+  set cy to (item 2 of p) + 28 + (((item 2 of s) - 28) * 0.550)
+  click at {cx, cy}
+end tell
+APPLESCRIPT
+          sleep 3
+          snap "02-after-click"
+
+          echo "=== B: Return key ==="
+          osascript -e 'tell application "Simulator" to activate' -e 'tell application "System Events" to key code 36' 2>&1 || true
+          sleep 3
+          snap "03-after-return"
+
+          echo "=== C: AX click button 1 ==="
+          osascript -e 'tell application "System Events" to tell process "Simulator" to click button 1 of window 1' 2>&1 || true
+          sleep 3
+          snap "04-after-axclick"
+
+          echo "=== D: try to find alert UI elements ==="
+          osascript <<'APPLESCRIPT' 2>&1 || true
+tell application "System Events" to tell process "Simulator"
+  set out to ""
+  repeat with w in windows
+    set out to out & "WINDOW: " & (name of w) & " buttons=" & (count of buttons of w) & linefeed
+    repeat with b in (buttons of w)
+      set out to out & "  BTN: " & (name of b) & linefeed
+    end repeat
+  end repeat
+  return out
+end tell
+APPLESCRIPT
+
+          echo "=== hashes ==="
+          (md5 shots/*.png || md5sum shots/*.png) | sed 's#shots/##'
+
+      - name: Upload diag shots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diag-shots
+          path: shots/*.png
+          if-no-files-found: warn
