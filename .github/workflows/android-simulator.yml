@@ -19,6 +19,7 @@ on:
       - "babel.config.js"
       - "tsconfig.json"
       - "maestro/**"
+      - "scripts/**"
       - "tools/**"
       - ".github/workflows/android-simulator.yml"
 
@@ -34,7 +35,9 @@ jobs:
   android-emulator:
     name: Build and run on Android Emulator
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 冷启动实测：Gradle（4 个 ABI 的 C++ 编译）20-27 分钟 + 模拟器启动 8-16 分钟
+    # + 装包与 Maestro 若干分钟，60 分钟会被掐掉（踩过一次 cancelled）。
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,7 +82,10 @@ jobs:
           chmod +x ./gradlew
           # Release 把 JS bundle 内联进 APK，模拟器里没有 Metro 也能独立跑，
           # 与 iOS 那条链路的 Release 选择保持一致。
-          ./gradlew --no-daemon assembleRelease
+          #
+          # 只编 x86_64：模拟器就是 x86_64，编另外三个 ABI 纯属浪费 ——
+          # 四个 ABI 时 APK 134 MB、光 adb install 就 7 分半，C++ 编译占掉 20 多分钟。
+          ./gradlew --no-daemon assembleRelease -PreactNativeArchitectures=x86_64
 
       - name: Install Maestro
         run: |
@@ -96,6 +102,9 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
+          # action 默认只给 AVD 2 核；runner 有 4 核，给满能明显加快装包与冷启动
+          cores: 4
+          ram-size: 4096
           # 这台 runner 上冷启动实测要 16 分钟，默认 900 秒太贴边了
           emulator-boot-timeout: 1500
           script: |
