@@ -66,12 +66,22 @@ jobs:
             --output maestro-report.xml || true
 
           echo "=== screenshots produced by Maestro ==="
-          # Maestro 把相对路径截图落在 flow 文件所在目录（maestro/shots/）下。
           mkdir -p shots
           # 兜底：无论流程成败，都留一张流程结束时的设备状态。
           xcrun simctl io "${DEVICE_ID}" screenshot shots/99-after-flow.png || true
-          ls -la maestro/shots/ 2>/dev/null || echo "no maestro/shots dir"
-          cp maestro/shots/*.png shots/ 2>/dev/null || true
+          echo "--- pwd ---"; pwd
+          echo "--- workspace pngs ---"
+          find "$GITHUB_WORKSPACE" -name "*.png" -newermt '-20 minutes' 2>/dev/null | head -50
+          echo "--- HOME pngs ---"
+          find "$HOME" -name "*.png" -newermt '-20 minutes' 2>/dev/null | head -50
+          echo "--- /tmp + /private pngs ---"
+          find /tmp /private/var/folders -name "*.png" -newermt '-20 minutes' 2>/dev/null | head -50
+          echo "--- copy anything named like our shots ---"
+          find "$GITHUB_WORKSPACE" "$HOME" /tmp /private/var/folders \
+            \( -name "0*-today*.png" -o -name "0*-train*.png" -o -name "0*-food*.png" \
+               -o -name "0*-health*.png" -o -name "0*-me*.png" -o -name "0*-capture*.png" \
+               -o -name "0*-plan*.png" -o -name "0*-final*.png" \) \
+            -not -path "*/node_modules/*" 2>/dev/null -exec cp {} shots/ \; || true
           (ls -la shots/ || true)
           (md5 shots/*.png || md5sum shots/*.png) 2>/dev/null | sed 's#.*/##' || true
 
