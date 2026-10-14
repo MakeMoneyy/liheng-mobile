@@ -94,6 +94,22 @@ jobs:
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
           "$HOME/.maestro/bin/maestro" --version
 
+      # GitHub 的 Linux runner **有** /dev/kvm，但设备节点属于 kvm 组且是 0660，
+      # 运行用户 runner 不在组里 —— android-emulator-runner 探测不到权限后会给
+      # emulator 加 `-accel off`，x86_64 镜像就退化成 qemu TCG 纯软件执行。
+      # 实测代价：开机 969 秒、装 47 MB 的 APK 用 5 分钟、GMS 与 Launcher 连环
+      # ANR（屏幕上盖一层“Pixel Launcher isn't responding”），最后 Maestro 的
+      # on-device 驱动直接被拖死。放开 /dev/kvm 权限即可，必须跑在模拟器步骤之前。
+      - name: Enable KVM
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 666 /dev/kvm || true
+          ls -l /dev/kvm
+
       - name: Run app on emulator and capture evidence
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
@@ -102,6 +118,9 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
+          # 上面已经把 /dev/kvm 放开了，这里显式关掉 action 的“禁用硬件加速”逻辑，
+          # 否则它会继续加 `-accel off`，让上面的修复白做。
+          disable-linux-hw-accel: false
           # action 默认只给 AVD 2 核；runner 有 4 核，给满能明显加快装包与冷启动
           cores: 4
           ram-size: 4096
