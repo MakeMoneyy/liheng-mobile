@@ -124,6 +124,13 @@ jobs:
 
           xcrun simctl install "${DEVICE_ID}" "${APP_PATH}"
 
+          # 打开 Simulator.app：osascript 只能把按键发给前台窗口，
+          # 没有这步的话 “Open in …?” 确认框点不掉。
+          # 同时强制连接硬件键盘，否则 key code 36 传不进模拟器里的 iOS。
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool true || true
+          open -a Simulator || true
+          sleep 8
+
           mkdir -p screenshots
 
           # 录屏覆盖「启动 -> 切 tab -> 开 modal」整条主流程
@@ -143,10 +150,16 @@ jobs:
           sleep 12
           xcrun simctl io "${DEVICE_ID}" screenshot screenshots/01-today.png
 
+          # 自定义 scheme 的 deep link：expo-router 会把 liheng:///x 解析成路由 /x，
+          # (tabs) 这种路由组不出现在 URL 里。
+          # iOS 18+ 从外部打开自定义 scheme 会先弹 “Open in 练衡?” 确认框，
+          # 必须回车点掉默认的 Open 按钮，否则页面永远停在弹窗上。
           shot() {
-            # 自定义 scheme 的 deep link：expo-router 会把 liheng:///x 解析成路由 /x，
-            # (tabs) 这种路由组不出现在 URL 里。
             xcrun simctl openurl "${DEVICE_ID}" "$1" || true
+            sleep 2
+            osascript \
+              -e 'tell application "Simulator" to activate' \
+              -e 'tell application "System Events" to key code 36' 2>/dev/null || true
             sleep 3
             xcrun simctl io "${DEVICE_ID}" screenshot "screenshots/$2.png"
           }
@@ -158,6 +171,9 @@ jobs:
           shot "liheng:///capture" 06-capture
           shot "liheng:///plan"    07-plan
           shot "liheng:///"        08-back-to-today
+
+          # 每张图打一个哈希：7 张完全一样就说明导航没生效（弹窗没点掉）。
+          (md5 screenshots/*.png || md5sum screenshots/*.png) | sed 's#screenshots/##'
 
           sleep 2
           stop_recording
