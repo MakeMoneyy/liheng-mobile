@@ -42,6 +42,13 @@ adb install -r "${APK_PATH}"
 rm -rf "${SHOTS_DIR}"
 mkdir -p "${SHOTS_DIR}"
 
+# Maestro 流程里的 tab 用的是屏幕百分比坐标（y=94%），这个值是按手势导航
+# 验证出来的。runner 的镜像可能默认三键导航，那样 tab bar 会整体上移、
+# 坐标就点空了，所以先把导航方式统一成手势。
+log "统一为手势导航（对齐 tab 坐标）"
+adb shell cmd overlay enable com.android.internal.systemui.navbar.gestural || true
+sleep 5
+
 # 与 iOS 相同的约定：先由外部把 App 拉到前台，再交给 Maestro 接管，
 # 这样流程里不需要 launchApp（iOS 18+ 上 launchApp 会弹 SpringBoard 确认框）。
 log "拉起 App 并等首帧"
