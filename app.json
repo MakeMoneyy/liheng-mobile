@@ -7,6 +7,7 @@
     "scheme": "liheng",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0f120d",
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.liheng.mobile",
@@ -18,9 +19,16 @@
     },
     "android": {
       "package": "app.liheng.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f120d"
+      },
       "permissions": [
         "CAMERA"
       ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -37,6 +45,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0f120d",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
           "resizeMode": "contain"
         }
       ]

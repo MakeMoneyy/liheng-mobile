@@ -114,7 +114,23 @@ src/
   components/ui.tsx           Card / Button / Chip / Ring / MacroBar / 折线 / 柱状…
   store.tsx                   全局状态，接口与 Web 版一致
   theme.ts                    配色、间距、字体族名
+assets/                       图标与启动图，由 scripts/make-icons.py 生成
 ```
+
+### 图标与启动图
+
+`assets/` 里的四张 PNG（`icon` / `adaptive-icon` / `splash-icon` / `favicon`）
+由 `scripts/make-icons.py` 用品牌色板 + App 自带的 Noto Serif SC 字体画出来，
+改配色或字形后重跑一次即可：
+
+```powershell
+python scripts/make-icons.py
+```
+
+`app.json` 里 `expo-splash-screen` 插件**必须带 `image`**。只写 `backgroundColor`
+时，prebuild 生成的 Android `styles.xml` 仍然引用 `@drawable/splashscreen_logo`，
+但那个 drawable 不会被生成，release APK 会在 `:app:processReleaseResources`
+直接链接失败（`resource drawable/splashscreen_logo not found`）。
 
 ### 存储
 
