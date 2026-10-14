@@ -166,8 +166,14 @@ npx eas build -p android --profile preview
 
 仓库里已有 `.github/workflows/ios-simulator.yml`：推到 GitHub（仓库需 **公开**，
 托管 macOS runner 才免费）后自动在云端 `prebuild` → `pod install` →
-`xcodebuild`（Release）→ 装进真 iOS Simulator → 截图 + 录屏，产物在
+`xcodebuild`（Release）→ 装进真 iOS Simulator → 用 **Maestro 走真实点击**
+遍历五个 tab 与两个 modal（带 `assertVisible` 断言）→ 截图 + 录屏，产物在
 Actions 页面的 **Artifacts** 里下载。完整步骤与排错见 `../iOS验证方案.md`。
+
+```powershell
+# 下载产物（需先设 $env:GH_TOKEN）
+pwsh -File scripts/download-ios-artifact.ps1
+```
 
 也可以用 EAS 出包（有免费额度上限）：
 
