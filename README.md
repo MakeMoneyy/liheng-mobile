@@ -152,6 +152,27 @@ npm test        # 80 个用例
 
 ## 出包
 
+### 两端模拟器验证（GitHub Actions，零成本）
+
+仓库里有两个 workflow，都用**同一份** `maestro/smoke.yaml` 走真实点击：
+
+| workflow | runner | 产物 |
+| --- | --- | --- |
+| `.github/workflows/ios-simulator.yml` | `macos-26`（自带 Xcode） | `.app` 压缩包 / 8 张截图 / 录屏 |
+| `.github/workflows/android-simulator.yml` | `ubuntu-latest`（自带 NDK + KVM） | release APK / 9 张截图 / JUnit 报告 |
+
+两边都是 `prebuild` → Release 构建（JS bundle 内联，不依赖 Metro）→ 装进
+真模拟器 → Maestro 遍历五个 tab 与两个 modal（每步带 `assertVisible` 断言）
+→ 截图回传。截图哈希重复会直接让 job 失败。
+
+仓库必须 **公开** 才免费用托管 runner。完整步骤与排错见 `../iOS验证方案.md`。
+
+```powershell
+# 下载产物（需先设 $env:GH_TOKEN）
+pwsh -File scripts/download-artifacts.ps1 -Platform ios
+pwsh -File scripts/download-artifacts.ps1 -Platform android
+```
+
 ### 安卓 APK（内部分发 / 自测）
 
 ```powershell
@@ -162,18 +183,7 @@ npx eas build -p android --profile preview
 
 ### iOS 模拟器包（无需 Apple 开发者账号）
 
-**推荐：走 GitHub Actions，零成本、不限时长。**
-
-仓库里已有 `.github/workflows/ios-simulator.yml`：推到 GitHub（仓库需 **公开**，
-托管 macOS runner 才免费）后自动在云端 `prebuild` → `pod install` →
-`xcodebuild`（Release）→ 装进真 iOS Simulator → 用 **Maestro 走真实点击**
-遍历五个 tab 与两个 modal（带 `assertVisible` 断言）→ 截图 + 录屏，产物在
-Actions 页面的 **Artifacts** 里下载。完整步骤与排错见 `../iOS验证方案.md`。
-
-```powershell
-# 下载产物（需先设 $env:GH_TOKEN）
-pwsh -File scripts/download-ios-artifact.ps1
-```
+**推荐：走上面的 GitHub Actions，零成本、不限时长。**
 
 也可以用 EAS 出包（有免费额度上限）：
 

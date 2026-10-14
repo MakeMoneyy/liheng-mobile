@@ -1,20 +1,21 @@
-# 练衡 iOS 冒烟流程：走遍五个 tab 与两个 modal。
+# 练衡冒烟流程：走遍五个 tab 与两个 modal。iOS / Android 共用这一份。
 #
-# 约定：**由外部先启动 App**（CI 里是 `xcrun simctl launch`），本流程里
-# 不写 launchApp。原因是 iOS 18+ 上由 XCTest/SpringBoard 代启 App 会弹出
-# “Open in 练衡?” 系统确认框，该弹窗属于 SpringBoard，会吞掉后续所有点击，
-# 导致截图全部相同。App 已在最前台时 Maestro 直接接管，就没有这个问题。
+# 约定：**由外部先启动 App**（iOS 用 `xcrun simctl launch`，Android 用
+# `adb shell monkey -p app.liheng.mobile 1`），本流程里不写 launchApp。
+# 原因是 iOS 18+ 上由 XCTest/SpringBoard 代启 App 会弹 “Open in 练衡?”
+# 系统确认框，该弹窗属于 SpringBoard，会吞掉后续所有点击，导致截图全部
+# 相同。App 已在最前台时 Maestro 直接接管，就没有这个问题。
 #
 # 为什么 tab 用百分比坐标而不是文字：iOS 上 React Navigation 的 tab 无障
 # 碍标签会被拼成 “训练, tab, 2 of 5” 之类，而 Maestro 的 text 匹配是整串
-# 正则全匹配，写 "训练" 匹配不到。百分比坐标设备无关，稳。
+# 正则全匹配，写 "训练" 匹配不到。百分比坐标两端都能用：
+#   横向五个 tab 中心在 x = 10% / 30% / 50% / 70% / 90%；
+#   纵向落在底部 tab bar 图标行（iOS 与 Android 的 edge-to-edge 都约 94%）。
 appId: app.liheng.mobile
 ---
 - assertVisible: "今天的账本"
 - takeScreenshot: shots/01-today
 
-# 五个 tab 横向均分，中心约在 x = 10% / 30% / 50% / 70% / 90%，
-# 纵向落在底部 tab bar 图标行（约 94%）。
 - tapOn:
     point: "30%,94%"
 - assertVisible: "记录每一组，进步才有据可依。"

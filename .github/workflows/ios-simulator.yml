@@ -161,7 +161,7 @@ jobs:
           #   $HOME/.maestro/tests/<时间戳>/<flow 名>/takeScreenshot/shots/
           # 而不是 flow 文件的相对路径下，所以显式去那里取，再统一收进
           # screenshots/，保证 artifact 路径稳定。
-          maestro test maestro/ios-smoke.yaml \
+          maestro test maestro/smoke.yaml \
             --device "${DEVICE_ID}" \
             --format junit \
             --output maestro-report.xml
