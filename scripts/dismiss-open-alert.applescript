@@ -18,12 +18,12 @@ on run argv
         set report to "FRONTMOST: " & (name of first process whose frontmost is true) & linefeed
         set report to report & "WINDOWS: " & (count of windows) & linefeed
         repeat with w in windows
-          set report to report & "  W: " & (name of w) & " buttons=" & (count of buttons of w) & linefeed
+          set report to report & "  W: " & (name of w) & " pos=" & (position of w) & " size=" & (size of w) & " buttons=" & (count of buttons of w) & linefeed
           repeat with b in (buttons of w)
             set report to report & "    BTN: " & (name of b) & linefeed
           end repeat
         end repeat
-        log report
+        do shell script "echo " & quoted form of report
       end tell
     end tell
   end if

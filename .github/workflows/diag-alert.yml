@@ -32,6 +32,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "=== java on runner ==="
+          java -version 2>&1 | head -n 3 || echo "NO JAVA"
+
+          echo "=== install maestro ==="
+          set +e
+          curl -Ls "https://get.maestro.mobile.dev" -o /tmp/maestro_install.sh
+          echo "install script curl exit=$? size=$(wc -c < /tmp/maestro_install.sh 2>/dev/null)"
+          head -n 20 /tmp/maestro_install.sh 2>/dev/null
+          bash /tmp/maestro_install.sh
+          echo "installer exit=$?"
+          export PATH="$PATH:$HOME/.maestro/bin"
+          maestro --version 2>&1 | head -n 5
+          echo "maestro exit=$?"
+          set -e
+
           DEVICE_ID=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
           echo "device: ${DEVICE_ID}"
           xcrun simctl boot "${DEVICE_ID}" || true
