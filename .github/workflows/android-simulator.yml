@@ -99,71 +99,9 @@ jobs:
           # 这台 runner 上冷启动实测要 16 分钟，默认 900 秒太贴边了
           emulator-boot-timeout: 1500
           script: |
-            # 注意：android-emulator-runner 用 /usr/bin/sh（Ubuntu 上是 dash）跑这段脚本，
-            # dash **不支持** `set -o pipefail`，写了会在第一行就整段失败（exit code 2），
-            # 表现是「模拟器起来之后什么都没干就报错」。所以这里只用 POSIX 写法。
-            set -eu
-            export PATH="$PATH:$HOME/.maestro/bin"
-            export MAESTRO_CLI_NO_ANALYTICS=1
-            export MAESTRO_DRIVER_STARTUP_TIMEOUT=180000
-
-            APK="android/app/build/outputs/apk/release/app-release.apk"
-            if [ ! -f "${APK}" ]; then
-              echo "::error::没找到 release APK"
-              find android/app/build/outputs -name "*.apk" || true
-              exit 1
-            fi
-
-            adb wait-for-device
-            adb install -r "${APK}"
-
-            mkdir -p screenshots
-
-            # 与 iOS 相同的约定：先由外部把 App 拉到前台，再交给 Maestro 接管，
-            # 这样流程里不需要 launchApp。
-            adb shell monkey -p "${APP_ID}" -c android.intent.category.LAUNCHER 1 || true
-            # 冷启动要读 SQLite、加载中文字体，等进程真的起来再多给几秒首帧
-            i=0
-            while [ "$i" -lt 20 ]; do
-              if adb shell pidof "${APP_ID}" >/dev/null 2>&1; then break; fi
-              sleep 2
-              i=$((i + 1))
-            done
-            sleep 25
-            adb exec-out screencap -p > screenshots/00-launched.png
-
-            # 故意不直接让 `set -e` 掐断：Maestro 失败时也要把已经截到的图收上来，
-            # 否则失败原因只能靠猜（上传步骤是 if: always()）。
-            set +e
-            maestro test maestro/smoke.yaml \
-              --format junit \
-              --output maestro-report.xml
-            MAESTRO_RC=$?
-            set -e
-            echo "maestro exit code: ${MAESTRO_RC}"
-
-            # Maestro 把 takeScreenshot 的输出放在
-            #   $HOME/.maestro/tests/<时间戳>/<flow>/takeScreenshot/shots/
-            MAESTRO_SHOTS=$(find "$HOME/.maestro/tests" -type d -path "*takeScreenshot/shots" 2>/dev/null | sort | tail -n 1 || true)
-            echo "maestro shots dir: ${MAESTRO_SHOTS:-<none>}"
-            if [ -n "${MAESTRO_SHOTS}" ]; then
-              cp "${MAESTRO_SHOTS}"/*.png screenshots/
-            fi
-            ls -la screenshots/
-
-            # 哈希自检：导航若失效，多张图会完全一致。
-            md5sum screenshots/*.png
-            UNIQUE=$(md5sum screenshots/*.png | awk '{print $1}' | sort -u | wc -l | tr -d ' ')
-            TOTAL=$(ls screenshots/*.png | wc -l | tr -d ' ')
-            echo "unique screenshots: ${UNIQUE}/${TOTAL}"
-            if [ "${UNIQUE}" -lt 6 ]; then
-              echo "::error::截图重复过多（${UNIQUE}/${TOTAL}），导航很可能没生效"
-              exit 1
-            fi
-            if [ "${MAESTRO_RC}" -ne 0 ]; then
-              echo "::error::Maestro 流程失败（exit ${MAESTRO_RC}），看上面的输出与 maestro-report.xml"
-              exit 1
-            fi
+            # 这里只能是一行：android-emulator-runner 把 script 逐行交给
+            # `sh -c`（dash）执行，变量与 if/while 都不跨行。逻辑放在脚本文件里。
+            bash scripts/android-evidence.sh
 
       - name: Upload emulator artifacts
         if: always()
