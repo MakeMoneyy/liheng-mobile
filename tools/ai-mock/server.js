@@ -149,10 +149,10 @@ function pick(list, score) {
   return best;
 }
 
-/** 克数 = 这一份要贡献的热量 ÷ 每克热量，取 5g 的整数倍 */
-function gramsFor(kcal, food) {
+/** 克数 = 这一份要贡献的热量 ÷ 每克热量，取 5g 的整数倍，并限制在常见份量内 */
+function gramsFor(kcal, food, cap = 400) {
   const perGram = Math.max(0.1, food.kcal / 100);
-  return Math.max(5, Math.min(800, Math.round(kcal / perGram / 5) * 5));
+  return Math.max(5, Math.min(cap, Math.round(kcal / perGram / 5) * 5));
 }
 
 /**
@@ -179,8 +179,26 @@ function buildPlan(prompt) {
     const picks = [proteinPick, carbPick, lightPick].filter(
       (f, i, arr) => arr.findIndex((x) => x.id === f.id) === i,
     );
-    const share = slotKcal / picks.length;
-    const items = picks.map((f) => ({ foodId: f.id, grams: gramsFor(share, f) }));
+
+    // 摊法：热量低的那个（通常是蔬菜）只给一份常见份量 150g，
+    // 剩下的热量按 55/45 分给蛋白源和碳水源。等比平分会让 16kcal/100g 的
+    // 生菜被算出 800g 这种荒唐份量，一看就不像人写的配餐。
+    let items;
+    if (picks.length >= 3) {
+      // 给蔬菜类留 12% 的热量额度，再按 150g 封顶，避免出现「800g 生菜」这种
+      // 一看就不像人写的份量；剩下的热量由蛋白源与碳水源按 55/45 承担。
+      const light = gramsFor(slotKcal * 0.12, picks[2], 150);
+      const lightKcal = (picks[2].kcal / 100) * light;
+      const rest = Math.max(0, slotKcal - lightKcal);
+      items = [
+        { foodId: picks[0].id, grams: gramsFor(rest * 0.55, picks[0]) },
+        { foodId: picks[1].id, grams: gramsFor(rest * 0.45, picks[1]) },
+        { foodId: picks[2].id, grams: light },
+      ];
+    } else {
+      const share = slotKcal / picks.length;
+      items = picks.map((f) => ({ foodId: f.id, grams: gramsFor(share, f) }));
+    }
     return { slot, items, reason };
   });
 
