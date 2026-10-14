@@ -1,0 +1,38 @@
+name: Probe osascript accessibility
+
+# 一次性诊断：iOS 18+ 用自定义 scheme 打开 App 会弹 “Open in …?” 确认框，
+# 需要模拟按键去确认。这里先验证 runner 上 osascript 有没有辅助功能权限。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - name: Boot simulator and probe osascript
+        run: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
+          echo "device: ${DEVICE_ID}"
+          xcrun simctl boot "${DEVICE_ID}" || true
+          xcrun simctl bootstatus "${DEVICE_ID}" -b
+          open -a Simulator || true
+          sleep 8
+
+          echo "--- probe 1: System Events frontmost (需要辅助功能权限) ---"
+          set +e
+          osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>probe1.err
+          echo "exit=$?"
+          echo "stderr: $(cat probe1.err 2>/dev/null)"
+
+          echo "--- probe 2: 发送回车 ---"
+          osascript -e 'tell application "Simulator" to activate' -e 'tell application "System Events" to key code 36' 2>probe2.err
+          echo "exit=$?"
+          echo "stderr: $(cat probe2.err 2>/dev/null)"
+          set -e
+
+          echo "--- probe 3: java (Maestro 备选方案需要) ---"
+          (java -version 2>&1 | head -n 3) || echo "no java on PATH"
+          echo "PROBE_DONE"
