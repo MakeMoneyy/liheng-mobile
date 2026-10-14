@@ -32,20 +32,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "=== java on runner ==="
-          java -version 2>&1 | head -n 3 || echo "NO JAVA"
-
           echo "=== install maestro ==="
-          set +e
-          curl -Ls "https://get.maestro.mobile.dev" -o /tmp/maestro_install.sh
-          echo "install script curl exit=$? size=$(wc -c < /tmp/maestro_install.sh 2>/dev/null)"
-          head -n 20 /tmp/maestro_install.sh 2>/dev/null
-          bash /tmp/maestro_install.sh
-          echo "installer exit=$?"
+          curl -Ls "https://get.maestro.mobile.dev" | bash
           export PATH="$PATH:$HOME/.maestro/bin"
-          maestro --version 2>&1 | head -n 5
-          echo "maestro exit=$?"
-          set -e
+          maestro --version
 
           DEVICE_ID=$(xcrun simctl list devices available | grep -m 1 -E "iPhone" | sed -E 's/.*\(([0-9A-Fa-f-]{36})\).*/\1/')
           echo "device: ${DEVICE_ID}"
@@ -53,46 +43,24 @@ jobs:
           xcrun simctl bootstatus "${DEVICE_ID}" -b
           xcrun simctl install "${DEVICE_ID}" "${APP_PATH}"
 
-          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool true || true
-          open -a Simulator || true
-          sleep 10
+          # Maestro 用文字点击导航，完全避开 deep link 确认框。
+          export MAESTRO_CLI_NO_ANALYTICS=1
+          export MAESTRO_DRIVER_STARTUP_TIMEOUT=180000
+          maestro test maestro/ios-smoke.yaml \
+            --device "${DEVICE_ID}" \
+            --format junit \
+            --output maestro-report.xml || true
 
-          mkdir -p shots
-          snap() { xcrun simctl io "${DEVICE_ID}" screenshot "shots/$1.png"; }
-
-          xcrun simctl launch "${DEVICE_ID}" app.liheng.mobile
-          sleep 12
-          snap "00-launched"
-
-          # 触发自定义 scheme 的确认框
-          xcrun simctl openurl "${DEVICE_ID}" "liheng:///train" || true
-          sleep 3
-          snap "01-alert"
-
-          echo "=== dump UI tree + click + return + space ==="
-          osascript scripts/dismiss-open-alert.applescript dump 2>&1 || true
-          osascript scripts/dismiss-open-alert.applescript click 2>&1 || true
-          sleep 3
-          snap "02-after-click"
-          osascript scripts/dismiss-open-alert.applescript return 2>&1 || true
-          sleep 3
-          snap "03-after-return"
-          osascript scripts/dismiss-open-alert.applescript space 2>&1 || true
-          sleep 3
-          snap "04-after-space"
-
-          # 弹窗若已关掉，这次 openurl 应能真正跳到「训练」
-          xcrun simctl openurl "${DEVICE_ID}" "liheng:///food" || true
-          sleep 3
-          snap "05-after-nav"
-
-          echo "=== hashes ==="
-          (md5 shots/*.png || md5sum shots/*.png) | sed 's#shots/##'
+          echo "=== screenshots produced by Maestro ==="
+          (ls -la shots/ 2>/dev/null || echo "no shots dir")
+          (md5 shots/*.png || md5sum shots/*.png) 2>/dev/null | sed 's#shots/##' || true
 
       - name: Upload diag shots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: diag-shots
-          path: shots/*.png
+          path: |
+            shots/*.png
+            maestro-report.xml
           if-no-files-found: warn
