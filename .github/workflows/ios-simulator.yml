@@ -18,6 +18,7 @@ on:
       - "babel.config.js"
       - "tsconfig.json"
       - "maestro/**"
+      - "tools/**"
       - ".github/workflows/ios-simulator.yml"
 
 concurrency:

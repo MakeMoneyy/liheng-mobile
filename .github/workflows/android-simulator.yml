@@ -19,6 +19,7 @@ on:
       - "babel.config.js"
       - "tsconfig.json"
       - "maestro/**"
+      - "tools/**"
       - ".github/workflows/android-simulator.yml"
 
 concurrency:

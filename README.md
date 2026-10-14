@@ -12,7 +12,7 @@
 cd outputs\liheng-mobile
 npm install
 npm run typecheck     # tsc --noEmit，应为 0 错误
-npm test              # 80 个单元测试
+npm test              # 87 个用例
 npm start             # Metro，扫码用 Expo Go 打开
 npm run android       # 直接拉起安卓模拟器 / 真机
 ```
@@ -155,7 +155,7 @@ python scripts/make-icons.py
 ## 测试
 
 ```powershell
-npm test        # 80 个用例
+npm test        # 87 个用例
 ```
 
 | 文件 | 用例 | 覆盖 |
@@ -165,6 +165,12 @@ npm test        # 80 个用例
 | `domain/plan.test.ts` | 19 | 本地重算、非法 foodId 丢弃、偏差、AI 数字被忽略、训练日判定与目标 |
 | `ai/parse.test.ts` | 12 | 正常 JSON / 围栏 / 缺字段 / 非法 JSON |
 | `ai/client.test.ts` | 17 | 401/429/超时映射、重试次数、AbortController |
+| `ai/mock-chain.test.ts` | 7 | **真起 mock 服务**跑全链路：识别→匹配、配餐→本地重算、非法 foodId、429 重试、401 不重试、超时 |
+
+最后一组不是打桩测试：它自己拉起 `tools/ai-mock/server.js`（随机端口），把
+`recognizeMeal` / `requestPlanDraft` 接到真实 socket 上，因此同时覆盖了
+HTTP、JSON 解析、本地匹配与重算。mock 是零依赖的 OpenAI 兼容服务，用来在
+**不申请 API Key、不花一分钱**的前提下验证 AI 功能，用法见 `../手机调试环境.md`。
 
 ## 出包
 
