@@ -46,18 +46,33 @@ jobs:
           xcrun simctl boot "${DEVICE_ID}" || true
           xcrun simctl bootstatus "${DEVICE_ID}" -b
           xcrun simctl install "${DEVICE_ID}" "${APP_PATH}"
+          xcrun simctl launch "${DEVICE_ID}" app.liheng.mobile || true
+          sleep 20
 
           # Maestro 用文字点击导航，完全避开 deep link 确认框。
           export MAESTRO_CLI_NO_ANALYTICS=1
           export MAESTRO_DRIVER_STARTUP_TIMEOUT=180000
+
+          # 先 dump 一次层级树，方便确认 tab 元素的实际文本/坐标。
+          maestro hierarchy > hierarchy.txt 2>&1 || true
+          echo "=== hierarchy (first 120 lines) ==="
+          head -n 120 hierarchy.txt || true
+
           maestro test maestro/ios-smoke.yaml \
             --device "${DEVICE_ID}" \
             --format junit \
             --output maestro-report.xml || true
 
           echo "=== screenshots produced by Maestro ==="
-          (ls -la shots/ 2>/dev/null || echo "no shots dir")
-          (md5 shots/*.png || md5sum shots/*.png) 2>/dev/null | sed 's#shots/##' || true
+          # Maestro 把相对路径截图落在 flow 文件所在目录下，这里统一收集到 shots/。
+          mkdir -p shots
+          # 兜底：无论流程成败，都留一张流程结束时的设备状态。
+          xcrun simctl io "${DEVICE_ID}" screenshot shots/99-after-flow.png || true
+          find . -name "*.png" -not -path "./node_modules/*" -not -path "./appdir/*" -print
+          find . -name "*.png" -not -path "./node_modules/*" -not -path "./appdir/*" \
+            -exec cp {} shots/ \;
+          (ls -la shots/ || true)
+          (md5 shots/*.png || md5sum shots/*.png) 2>/dev/null | sed 's#.*/##' || true
 
       - name: Upload diag shots
         if: always()
