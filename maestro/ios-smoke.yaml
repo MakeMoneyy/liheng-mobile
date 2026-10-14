@@ -54,5 +54,3 @@ appId: app.liheng.mobile
 - assertVisible: "只从你的本地食物库里选，热量与宏量全部由本机计算。"
 - takeScreenshot: shots/08-plan
 - tapOn: "关闭"
-
-- takeScreenshot: shots/09-final

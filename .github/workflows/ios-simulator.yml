@@ -157,13 +157,20 @@ jobs:
           export MAESTRO_CLI_NO_ANALYTICS=1
           export MAESTRO_DRIVER_STARTUP_TIMEOUT=180000
 
-          # Maestro 把相对路径截图落在 flow 文件所在目录（maestro/）下，
-          # 这里统一收进 screenshots/，保证 artifact 路径稳定。
+          # Maestro 把 takeScreenshot 的输出放到
+          #   $HOME/.maestro/tests/<时间戳>/<flow 名>/takeScreenshot/shots/
+          # 而不是 flow 文件的相对路径下，所以显式去那里取，再统一收进
+          # screenshots/，保证 artifact 路径稳定。
           maestro test maestro/ios-smoke.yaml \
             --device "${DEVICE_ID}" \
             --format junit \
             --output maestro-report.xml
-          find maestro -name "*.png" -exec cp {} screenshots/ \;
+          MAESTRO_SHOTS=$(find "$HOME/.maestro/tests" -type d -path "*takeScreenshot/shots" 2>/dev/null | sort | tail -n 1 || true)
+          echo "maestro shots dir: ${MAESTRO_SHOTS:-<none>}"
+          if [ -n "${MAESTRO_SHOTS}" ]; then
+            cp "${MAESTRO_SHOTS}"/*.png screenshots/
+          fi
+          ls -la screenshots/
 
           # 每张图打一个哈希：若导航没生效，多张图会完全一致。
           (md5 screenshots/*.png || md5sum screenshots/*.png) | sed 's#screenshots/##'
