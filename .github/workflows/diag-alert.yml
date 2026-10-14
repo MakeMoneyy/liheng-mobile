@@ -21,14 +21,16 @@ jobs:
           name: liheng-ios-simulator
           run-id: 38504907444
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: artifact
+          # 放到 runner 临时目录，别落在工作区里——这个 artifact 自带
+          # screenshots/*.png，落在工作区会被后面的 find 收进来污染结果。
+          path: ${{ runner.temp }}/appartifact
 
       - name: Unpack app
         run: |
           set -euo pipefail
-          ls -la artifact
-          unzip -q artifact/liheng-ios-simulator.zip -d appdir
-          APP_PATH=$(find appdir -maxdepth 2 -name "*.app" -type d | head -n 1)
+          ls -la "${RUNNER_TEMP}/appartifact"
+          unzip -q "${RUNNER_TEMP}/appartifact/liheng-ios-simulator.zip" -d "${RUNNER_TEMP}/appdir"
+          APP_PATH=$(find "${RUNNER_TEMP}/appdir" -maxdepth 2 -name "*.app" -type d | head -n 1)
           echo "APP_PATH=${APP_PATH}"
           echo "APP_PATH=${APP_PATH}" >> "$GITHUB_ENV"
 
@@ -64,13 +66,12 @@ jobs:
             --output maestro-report.xml || true
 
           echo "=== screenshots produced by Maestro ==="
-          # Maestro 把相对路径截图落在 flow 文件所在目录下，这里统一收集到 shots/。
+          # Maestro 把相对路径截图落在 flow 文件所在目录（maestro/shots/）下。
           mkdir -p shots
           # 兜底：无论流程成败，都留一张流程结束时的设备状态。
           xcrun simctl io "${DEVICE_ID}" screenshot shots/99-after-flow.png || true
-          find . -name "*.png" -not -path "./node_modules/*" -not -path "./appdir/*" -print
-          find . -name "*.png" -not -path "./node_modules/*" -not -path "./appdir/*" \
-            -exec cp {} shots/ \;
+          ls -la maestro/shots/ 2>/dev/null || echo "no maestro/shots dir"
+          cp maestro/shots/*.png shots/ 2>/dev/null || true
           (ls -la shots/ || true)
           (md5 shots/*.png || md5sum shots/*.png) 2>/dev/null | sed 's#.*/##' || true
 
