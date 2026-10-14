@@ -1,50 +1,57 @@
 # 练衡 iOS 冒烟流程：走遍五个 tab 与两个 modal。
 #
-# 为什么不走 deep link：iOS 18+ 从外部用自定义 scheme 打开 App 会弹
-# “Open in 练衡?” 系统确认框，而这个弹窗属于 SpringBoard，simctl 无法
-# 编程关闭。
+# 约定：**由外部先启动 App**（CI 里是 `xcrun simctl launch`），本流程里
+# 不写 launchApp。原因是 iOS 18+ 上由 XCTest/SpringBoard 代启 App 会弹出
+# “Open in 练衡?” 系统确认框，该弹窗属于 SpringBoard，会吞掉后续所有点击，
+# 导致截图全部相同。App 已在最前台时 Maestro 直接接管，就没有这个问题。
 #
-# 为什么 tab 用百分比坐标而不是文字：iOS 上 React Navigation 的 tab
-# 无障碍标签会被拼成 “训练, tab, 2 of 5” 之类，而 Maestro 的 text 匹配
-# 是整串正则全匹配，写 "训练" 匹配不到。百分比坐标设备无关，稳。
+# 为什么 tab 用百分比坐标而不是文字：iOS 上 React Navigation 的 tab 无障
+# 碍标签会被拼成 “训练, tab, 2 of 5” 之类，而 Maestro 的 text 匹配是整串
+# 正则全匹配，写 "训练" 匹配不到。百分比坐标设备无关，稳。
 appId: app.liheng.mobile
 ---
-- launchApp:
-    clearState: false
 - assertVisible: "今天的账本"
 - takeScreenshot: shots/01-today
 
 # 五个 tab 横向均分，中心约在 x = 10% / 30% / 50% / 70% / 90%，
-# 纵向落在底部 tab bar 中部（安全区之上）。
+# 纵向落在底部 tab bar 图标行（约 94%）。
 - tapOn:
     point: "30%,94%"
+- assertVisible: "记录每一组，进步才有据可依。"
 - takeScreenshot: shots/02-train
 
 - tapOn:
     point: "50%,94%"
+- assertVisible: "热量与营养素数据全部本地可用，不设付费墙。"
 - takeScreenshot: shots/03-food
 
 - tapOn:
     point: "70%,94%"
+- assertVisible: "体重看趋势，不看单点。"
 - takeScreenshot: shots/04-health
 
 - tapOn:
     point: "90%,94%"
+- assertVisible: "目标由你的身体数据和训练强度算出来，不是拍脑袋定的。"
 - takeScreenshot: shots/05-me
 
 - tapOn:
     point: "10%,94%"
+- assertVisible: "今天的账本"
 - takeScreenshot: shots/06-today-again
 
 # modal 一：拍照识别（未配置 Key 时应显示配置引导而不是崩溃）
 # 按钮文案是 “📷 拍一餐”，用正则匹配更稳。
 - tapOn:
     text: ".*拍一餐"
+- assertVisible: "拍下来，AI 逐项拆出食物与克数，你确认份量后再记入账本。"
 - takeScreenshot: shots/07-capture
 - tapOn: "关闭"
 
 # modal 二：每日配餐
-- tapOn: "明天吃什么"
+# 用卡片里唯一的按钮文案，避免和顶部同名按钮撞车。
+- tapOn: "生成明天的配餐"
+- assertVisible: "只从你的本地食物库里选，热量与宏量全部由本机计算。"
 - takeScreenshot: shots/08-plan
 - tapOn: "关闭"
 
